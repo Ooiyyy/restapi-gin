@@ -9,7 +9,11 @@ import (
 
 func InitRoute(app *gin.Engine) {
 	route := app
+	//route user
 	route.GET("/user", user_controller.GetAllUser)
+	route.GET("/user/:id", user_controller.GetById)
+
+	//route book
 	route.GET("/book", book_controller.GetAllBook)
 
 }

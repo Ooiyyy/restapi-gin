@@ -1,6 +1,7 @@
 package user_controller
 
 import (
+	"net/http"
 	"restapi-gin/database"
 	"restapi-gin/models"
 
@@ -34,7 +35,20 @@ func GetAllUser(ctx *gin.Context) {
 }
 
 func GetById(ctx *gin.Context) {
+	id := ctx.Param("id")
+	user := new(models.User)
+	errDB := database.DB.Table("users").Where("id = ?", id).Find(&user).Error
 
+	if errDB != nil || user.ID == nil {
+		ctx.JSON(http.StatusNotFound, gin.H{
+			"message": "data not found",
+		})
+		return
+	}
+	ctx.JSON(200, gin.H{
+		"message": "data transmitted",
+		"data":    user,
+	})
 }
 
 func Store(ctx *gin.Context) {
