@@ -67,6 +67,15 @@ func Store(ctx *gin.Context) {
 		})
 		return
 	}
+	// Manual validation for unique email
+	userEmailExist := new(models.User)
+	database.DB.Table("users").Where("email = ?", userReq.Email).First(&userEmailExist)
+	if userEmailExist.Email != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"message": "email already used",
+		})
+		return
+	}
 
 	user := new(models.User)
 	user.Name = &userReq.Name
