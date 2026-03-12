@@ -97,9 +97,102 @@ func Store(ctx *gin.Context) {
 }
 
 func UpdateById(ctx *gin.Context) {
+	id := ctx.Param("id")
+	user := new(models.User)
+	userReq := new(requests.UserRequest)
+	userEmailExist := new(models.User)
 
+	if errReq := ctx.ShouldBind(&userReq); errReq != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"message": errReq.Error(),
+		})
+		return
+	}
+
+	errDb := database.DB.Table("users").Where("id = ?", id).Find(&user).Error
+
+	if errDb != nil {
+		ctx.JSON(500, gin.H{
+			"message": "internal server error",
+		})
+		return
+	}
+
+	if user.ID == nil {
+		ctx.JSON(404, gin.H{
+			"message": "data not found",
+		})
+		return
+	}
+	// email exists
+	errUserEmailExist := database.DB.Table("users").Where("email = ?", userReq.Email).Find(&userEmailExist).Error
+	if errUserEmailExist != nil {
+		ctx.JSON(500, gin.H{
+			"message": "Internal server error",
+		})
+		return
+	}
+
+	if userEmailExist.Email != nil && *user.ID != *userEmailExist.ID {
+		ctx.JSON(400, gin.H{
+			"message": "email already used",
+		})
+		return
+	}
+
+	user.Name = &userReq.Name
+	user.Email = &userReq.Email
+	user.Address = &userReq.Address
+	user.BornDate = &userReq.BornDate
+	errUpdate := database.DB.Table("users").Where("id = ?", id).Updates(&user).Error
+	if errUpdate != nil {
+		ctx.JSON(500, gin.H{
+			"message": "Can't update data",
+		})
+		return
+	}
+
+	//custom response field
+	userResponse := responses.UserResponse{
+		ID:      user.ID,
+		Name:    user.Name,
+		Email:   user.Email,
+		Address: user.Address,
+	}
+	ctx.JSON(200, gin.H{
+		"message": "data updated",
+		"data":    userResponse,
+	})
 }
 
 func DeleteById(ctx *gin.Context) {
+	id := ctx.Param("id")
 
+	//validation user id
+	user := new(models.User)
+	errFind := database.DB.Table("users").Where("id = ?", id).Find(&user).Error
+	if errFind != nil {
+		ctx.JSON(500, gin.H{
+			"message": "Internal server error",
+		})
+		return
+	}
+	if user.ID == nil {
+		ctx.JSON(404, gin.H{
+			"message": "data not found",
+		})
+		return
+	}
+
+	errDb := database.DB.Table("users").Unscoped().Where("id = ?", id).Delete(&models.User{}).Error
+	if errDb != nil {
+		ctx.JSON(500, gin.H{
+			"message": "Internal server error",
+			"error":   errDb.Error(),
+		})
+		return
+	}
+	ctx.JSON(200, gin.H{
+		"message": "data deleted",
+	})
 }
