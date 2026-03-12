@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"restapi-gin/database"
 	"restapi-gin/models"
+	"restapi-gin/requests"
+	"restapi-gin/responses"
 
 	"github.com/gin-gonic/gin"
 )
@@ -36,12 +38,18 @@ func GetAllUser(ctx *gin.Context) {
 
 func GetById(ctx *gin.Context) {
 	id := ctx.Param("id")
-	user := new(models.User)
+	user := new(responses.UserResponse)
 	errDB := database.DB.Table("users").Where("id = ?", id).Find(&user).Error
 
-	if errDB != nil || user.ID == nil {
+	if user.ID == nil {
 		ctx.JSON(http.StatusNotFound, gin.H{
 			"message": "data not found",
+		})
+		return
+	}
+	if errDB != nil {
+		ctx.JSON(500, gin.H{
+			"message": "Internal Server Error",
 		})
 		return
 	}
@@ -52,7 +60,31 @@ func GetById(ctx *gin.Context) {
 }
 
 func Store(ctx *gin.Context) {
+	userReq := new(requests.UserRequest)
+	if errReq := ctx.ShouldBind(&userReq); errReq != nil {
+		ctx.JSON(400, gin.H{
+			"message": errReq.Error(),
+		})
+		return
+	}
 
+	user := new(models.User)
+	user.Name = &userReq.Name
+	user.Email = &userReq.Email
+	user.Address = &userReq.Address
+	user.BornDate = &userReq.BornDate
+
+	errDb := database.DB.Table("users").Create(&user).Error
+	if errDb != nil {
+		ctx.JSON(500, gin.H{
+			"message": "can't create data",
+		})
+		return
+	}
+	ctx.JSON(200, gin.H{
+		"message": "data created",
+		"data":    user,
+	})
 }
 
 func UpdateById(ctx *gin.Context) {
