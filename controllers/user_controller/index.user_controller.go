@@ -1,13 +1,16 @@
 package user_controller
 
 import (
+	"errors"
 	"net/http"
 	"restapi-gin/database"
 	"restapi-gin/models"
 	"restapi-gin/requests"
 	"restapi-gin/responses"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 )
 
 func GetAllUser(ctx *gin.Context) {
@@ -59,38 +62,111 @@ func GetById(ctx *gin.Context) {
 	})
 }
 
+// func Store(ctx *gin.Context) {
+// 	userReq := new(requests.UserRequest)
+// 	if errReq := ctx.ShouldBind(&userReq); errReq != nil {
+// 		ctx.JSON(400, gin.H{
+// 			"error":   "isian form kurang lengkap",
+// 			"errors":  errReq.Error(),
+// 			"message": "data yang diberikan tidak valid",
+// 		})
+// 		return
+// 	}
+// 	// Manual validation for unique email
+// 	userEmailExist := new(models.User)
+// 	database.DB.Table("users").Where("email = ?", userReq.Email).First(&userEmailExist)
+// 	if userEmailExist.Email != nil {
+// 		ctx.JSON(http.StatusUnprocessableEntity, gin.H{
+// 			"message": "email already used",
+// 		})
+// 		return
+// 	}
+
+// 	user := new(models.User)
+// 	user.Name = &userReq.Name
+// 	user.Email = &userReq.Email
+// 	user.Address = &userReq.Address
+// 	user.BornDate = &userReq.BornDate
+
+//		errDb := database.DB.Table("users").Create(&user).Error
+//		if errDb != nil {
+//			ctx.JSON(500, gin.H{
+//				"message": "can't create data",
+//			})
+//			return
+//		}
+//		ctx.JSON(200, gin.H{
+//			"message": "data created",
+//			"data":    user,
+//		})
+//	}
 func Store(ctx *gin.Context) {
-	userReq := new(requests.UserRequest)
-	if errReq := ctx.ShouldBind(&userReq); errReq != nil {
-		ctx.JSON(400, gin.H{
-			"message": errReq.Error(),
-		})
-		return
-	}
-	// Manual validation for unique email
-	userEmailExist := new(models.User)
-	database.DB.Table("users").Where("email = ?", userReq.Email).First(&userEmailExist)
-	if userEmailExist.Email != nil {
+
+	var userReq requests.UserRequest
+
+	if err := ctx.ShouldBind(&userReq); err != nil {
+
+		var ve validator.ValidationErrors
+		fieldErrors := make(map[string]string)
+
+		if errors.As(err, &ve) {
+			for _, fe := range ve {
+
+				field := strings.ToLower(fe.Field())
+
+				switch fe.Tag() {
+
+				case "required":
+					fieldErrors[field] = field + " wajib diisi"
+
+				case "email":
+					fieldErrors[field] = "format email tidak valid"
+
+				case "min":
+					fieldErrors[field] = field + " minimal " + fe.Param() + " karakter"
+
+				default:
+					fieldErrors[field] = "nilai tidak valid"
+				}
+			}
+		}
+
 		ctx.JSON(http.StatusBadRequest, gin.H{
-			"message": "email already used",
+			"message": "Data yang diberikan tidak valid",
+			"errors":  fieldErrors,
 		})
 		return
 	}
 
-	user := new(models.User)
-	user.Name = &userReq.Name
-	user.Email = &userReq.Email
-	user.Address = &userReq.Address
-	user.BornDate = &userReq.BornDate
+	// cek email unique
+	var userExist models.User
+	result := database.DB.Where("email = ?", userReq.Email).First(&userExist)
 
-	errDb := database.DB.Table("users").Create(&user).Error
-	if errDb != nil {
-		ctx.JSON(500, gin.H{
+	if result.RowsAffected > 0 {
+		ctx.JSON(http.StatusUnprocessableEntity, gin.H{
+			"message": "validation error",
+			"errors": gin.H{
+				"email": "email already used",
+			},
+		})
+		return
+	}
+
+	user := models.User{
+		Name:     &userReq.Name,
+		Email:    &userReq.Email,
+		Address:  &userReq.Address,
+		BornDate: &userReq.BornDate,
+	}
+
+	if err := database.DB.Create(&user).Error; err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
 			"message": "can't create data",
 		})
 		return
 	}
-	ctx.JSON(200, gin.H{
+
+	ctx.JSON(http.StatusCreated, gin.H{
 		"message": "data created",
 		"data":    user,
 	})
