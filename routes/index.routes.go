@@ -18,5 +18,6 @@ func InitRoute(app *gin.Engine) {
 
 	//route book
 	route.GET("/book", book_controller.GetAllBook)
+	route.GET("/book/:id", book_controller.GetBookById)
 
 }
