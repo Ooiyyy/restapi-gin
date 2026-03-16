@@ -108,7 +108,6 @@ func Store(ctx *gin.Context) {
 
 		var ve validator.ValidationErrors
 		fieldErrors := make(map[string]string)
-
 		if errors.As(err, &ve) {
 			for _, fe := range ve {
 
